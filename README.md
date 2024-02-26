@@ -12,5 +12,5 @@ git clone https://github.com/Selkouutiset-Archive/selkokortti
 cd selkokortti
 git submodule update --init --remote
 
-python -m main --help
+python main.py --help
 ```
