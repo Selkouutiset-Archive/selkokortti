@@ -1,0 +1,3 @@
+[submodule "selkouutiset-scrape-cleaned"]
+	path = selkouutiset-scrape-cleaned
+	url = git@github.com:hiAndrewQuinn/selkouutiset-scrape-cleaned.git
