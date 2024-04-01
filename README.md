@@ -55,9 +55,11 @@ Next run
 
 ```bash
 git clone https://github.com/Selkouutiset-Archive/selkokortti
+
+cd selkokortti/
 ```
 
-to clone this repo. If you get asked something like `Are you sure you want to continue connecting (yes/no/[fingerprint])?`, answer `yes`.
+to clone this repo and go inside its folder. If you get asked something like `Are you sure you want to continue connecting (yes/no/[fingerprint])?`, answer `yes`.
 
 You should now see a fancy help text appear when you run
 
