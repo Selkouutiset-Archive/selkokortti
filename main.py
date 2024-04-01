@@ -172,11 +172,6 @@ def parse_response_json(file_path: str) -> List[str]:
         return []
 
 
-# Example usage
-file_path = "selkouutiset-scrape-cleaned/2023/10/26/_response.fi.en.json"
-response_texts = parse_response_json(file_path)
-
-
 def zip_translations(
     original_texts: List[str], translated_texts: List[str]
 ) -> List[tuple]:
