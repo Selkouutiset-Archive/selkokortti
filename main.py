@@ -255,13 +255,13 @@ def generate_flashcards(start_date, end_date, output):
 
 
 @app.command()
-def today(output: str = typer.Option("cards.anki", help="Output Anki file name")):
+def today(output: str = typer.Option("cards.apkg", help="Output Anki file name")):
     today_date = datetime.now().strftime("%Y.%m.%d")
     generate_flashcards(today_date, today_date, output)
 
 
 @app.command()
-def everything(output: str = typer.Option("cards.anki", help="Output Anki file name")):
+def everything(output: str = typer.Option("cards.apkg", help="Output Anki file name")):
     # Placeholder start_date and end_date. Replace these with actual logic to determine dates.
     start_date, end_date = find_date_range("selkouutiset-scrape-cleaned")
     generate_flashcards(start_date, end_date, output)
@@ -275,7 +275,7 @@ def range(
     end_date: str = typer.Argument(
         ..., formats=["%Y.%m.%d"], help="End date in yyyy.mm.dd format"
     ),
-    output: str = typer.Option("cards.anki", help="Output Anki file name"),
+    output: str = typer.Option("cards.apkg", help="Output Anki file name"),
 ):
     generate_flashcards(start_date, end_date, output)
 

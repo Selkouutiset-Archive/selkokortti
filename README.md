@@ -51,14 +51,32 @@ pip3 install typer genanki --break-system-packages
 export PATH="$PATH:/home/vagrant/.local/bin"
 ```
 
-Finally, run
+Next run
 
 ```bash
 git clone https://github.com/Selkouutiset-Archive/selkokortti
-cd selkokortti
-git submodule update --init --remote
-
-python main.py --help
 ```
 
-and you should see a fancy help window appear.
+to clone this repo. If you get asked something like `Are you sure you want to continue connecting (yes/no/[fingerprint])?`, answer `yes`.
+
+You should now see a fancy help text appear when you run
+
+```bash
+python3 main.py --help
+```
+
+But we still need the actual data for our flashcards, which comes from [this other repo](https://github.com/hiAndrewQuinn/selkouutiset-scrape-cleaned). So run 
+
+```bash
+git clone https://github.com/hiAndrewQuinn/selkouutiset-scrape-cleaned.git selkouutiset-scrape-cleaned/
+```
+
+to get the latest data.
+
+Now, finally, you can generate your flashcard Anki deck with e.g.
+
+```bash
+python3 main.py 2024.02.01 2024.02.05    # Flashcards from February 1st to 5th, 2024, inclusive.
+```
+
+A file called `cards.apkg` will appear in your current directory, which you can see by running `ls`. *This is what you want for Anki.* Getting to the point where you generate this `cards.apkg` is on you, but hopefully this Slowstart helps you see everything you need to do to get there, regardless of your experience level.
