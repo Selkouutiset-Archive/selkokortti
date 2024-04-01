@@ -7,18 +7,19 @@ from typing import List
 
 app = typer.Typer()
 
-# There is no inherent meaning in this number.
+# There is no inherent meaning in these numbers.
 # It's just needed for Anki to identify the model.
 MODEL_ID = 1178313288
+DECK_ID = 1813209776
 
 # The fun thing about genanki is it's like a tiny MVC framework all in one.
 selko_front_view = """
 <div class="deck">
 {{Deck}}
 </div>
-<div class="card" onclick="showBackContent()">
+<div class="card">
     <div class="front-content" id="front-content">
-       {{Front}}
+       {{Finnish}}
        <!-- <div id="shuffled-sentence"></div> -->
     </div>
     <div class="back-content">
@@ -30,84 +31,52 @@ selko_back_view = """
 <div class="deck">
 {{Deck}}
 </div>
-<div class="card" onclick="showBackContent()">
+<div class="card">
     <div class="front-content" id="front-content">
-       {{Front}}
+       {{Finnish}}
        <!-- <div id="shuffled-sentence"></div> -->
     </div>
     <div class="back-content">
-       {{Back}}
+       {{English}}
     </div>
 </div>
 """
 
 
 selko_css = """
-/* Base styling */
+/* Style for the card */
 .card {
-    font-family: Georgia, serif;
-    text-align: justify;
-    font-size: 25px;
-    display: grid;
-}
-
-/* Increase spacing between paragraphs */
-.card div {
-    margin-top: 10px; /* Adjust the space above the paragraph */
-    margin-bottom: 10px; /* Adjust the space below the paragraph */
-}
-
-.deck {        width: 100%; font-size: 50%; }
-    
-
-/* Desktop specific styling */
-@media screen and (min-width: 100px) {
-    .card {
-        display: flex;
-        justify-content: space-between;
-    }
-
-    /* Set the front and back content side by side with a fixed width */
-    .front-content, .back-content {
-        width: 900px; /* Fixed width for each column */
-        padding: 1%; /* Adjust padding as needed */
-        flex-grow: 0; /* Prevent flex items from growing */
-        flex-shrink: 0; /* Prevent flex items from shrinking */
-    }
-
-    /* Show the 'back' content on desktop */
-    .back-content {
-        display: block;
-    }
-}
-
-/* Adjust for mobile screens */
-@media screen and (max-width: 600px) { /* This targets screens smaller than 600px */
-    .card {
-        width: 100%; /* Make each take the full width */
-        display: block; /* Change layout to block for vertical stacking */
-    }
-
-    .front-content, .back-content {
-        width: 100%; /* Make each take the full width */
-        padding: 1%; /* Adjust padding if necessary */
-    }
-}
-
-/* Centering headings */
-.card h1, .card h2, .card h3, .card h4, .card h5, .card h6 {
+    font-size: 36px;
     text-align: center;
-    margin-top: 20px; /* Adjust the space above the heading */
-    margin-bottom: 20px; /* Adjust the space below the heading */
 }
 
-/* Centering and sizing images */
-.card img {
-    display: block; /* Make sure the image is block-level for margin auto to work */
-    margin-left: auto;
-    margin-right: auto;
-    max-width: 100%; /* Ensure the image is never larger than its container */
-    height: auto; /* Maintain aspect ratio */
+/* Style for the deck container */
+.deck {
+    font-size: 50%;
+    padding: 20px;
+}
+
+/* Style for the front content */
+.front-content {
+    padding: 20px;
+    color: darkred; /* Dark red color for Light mode */
+}
+
+/* Style for the back content */
+.back-content {
+    padding: 20px;
+    color: darkblue; /* Dark blue color for Light mode */
+}
+
+/* Adjustments for Dark mode */
+.card.nightMode {
+    .front-content {
+        color: #FFA07A; /* Light red color for Dark mode */
+    }
+
+    .back-content {
+        color: #ADD8E6; /* Light blue color for Dark mode */
+    }
 }
 """
 
@@ -123,21 +92,31 @@ model = genanki.Model(
             "name": "Finnish to English",
             "qfmt": selko_front_view,
             "afmt": selko_back_view,
-            "css": selko_css,
         },
     ],
+    css=selko_css,
 )
+
+deck = genanki.Deck(DECK_ID, "Selko")
 
 
 def parse_json(file_path: str, start_date=None, end_date=None):
     # Logic to parse JSON file and extract data based on date filters
     pass
 
+def create_deck(output_file="cards.apkg"):
+    genanki.Package(deck).write_to_file(output_file)
+    return
 
-def create_flashcards(data, output_file):
+def add_flashcards_to_deck(data, output_file):
     # Logic to create flashcards using genanki and save to output_file
-    pass
-
+    for finnish, english in data:
+        note = genanki.Note(
+            model=model,
+            fields=[finnish, english],
+        )
+        deck.add_note(note)
+    return
 
 def find_date_range(directory_path):
     earliest_date = datetime.max
@@ -257,8 +236,8 @@ def generate_flashcards_for_date(date, output):
     if not translation_pairs:
         raise typer.Exit(f"No data found for date: {date}")
 
-    # Create flashcards (assuming create_flashcards can handle the format of translation_pairs)
-    create_flashcards(translation_pairs, output)
+    # Create flashcards (assuming add_flashcards_to_deck can handle the format of translation_pairs)
+    add_flashcards_to_deck(translation_pairs, output)
 
     typer.echo(f"Flashcards generated for {date} in {output}")
 
@@ -271,6 +250,8 @@ def generate_flashcards(start_date, end_date, output):
     while current_date <= end:
         generate_flashcards_for_date(current_date.strftime("%Y.%m.%d"), output)
         current_date += timedelta(days=1)
+
+    create_deck()
 
 
 @app.command()
