@@ -1,5 +1,8 @@
 # selkokortti
-Generate Anki flashcards from Andrew's Selkouutiset Archive.
+Generate Anki flashcards from [Andrew's Selkouutiset Archive](https://hiandrewquinn.github.io/selkouutiset-archive/).
+
+[recording.webm](https://github.com/Selkouutiset-Archive/selkokortti/assets/53230903/15485a58-725a-4d79-8a2c-59da04c65448)
+
 
 ## Quickstart
 
