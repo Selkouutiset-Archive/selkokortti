@@ -78,7 +78,7 @@ to get the latest data.
 Now, finally, you can generate your flashcard Anki deck with e.g.
 
 ```bash
-python3 main.py 2024.02.01 2024.02.05    # Flashcards from February 1st to 5th, 2024, inclusive.
+python3 main.py range 2024.02.01 2024.02.05    # Flashcards from February 1st to 5th, 2024, inclusive.
 ```
 
 A file called `cards.apkg` will appear in your current directory, which you can see by running `ls`. *This is what you want for Anki.* Getting to the point where you generate this `cards.apkg` is on you, but hopefully this Slowstart helps you see everything you need to do to get there, regardless of your experience level.
