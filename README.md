@@ -38,7 +38,7 @@ You can exit this Linux virtual machine at any time with `exit`, and destroy it 
 vagrant destroy --force
 ```
 
-. Going back into `tutorial/` and running `vagrant up` will recreate it from scratch as if nothing happened.
+. Going back into `tutorial/` and running `vagrant up` will recreate it from scratch as if nothing happened, and running `vagrant ssh` will put you back in the VM.
 
 Let's install everything we need. `apt` lets us install things on Debian from the command line.
 
