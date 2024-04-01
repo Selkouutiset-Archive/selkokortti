@@ -158,11 +158,6 @@ def parse_request_json(file_path: str) -> List[str]:
         return []
 
 
-# Example usage
-file_path = "selkouutiset-scrape-cleaned/2023/10/26/_request.fi.en.json"
-request_texts = parse_request_json(file_path)
-
-
 def parse_response_json(file_path: str) -> List[str]:
     try:
         with open(file_path, "r", encoding="utf-8") as file:
