@@ -18,6 +18,14 @@ git submodule update --init --remote
 python main.py --help
 ```
 
+![image](https://github.com/Selkouutiset-Archive/selkokortti/assets/53230903/93242673-2dde-4373-b1d2-fcb24a37a0f5)
+
+The most flexible way to use this is with `range yyyy.mm.dd yyyy.mm.dd`, which will create flashcards from between those dates, inclusive:
+
+![image](https://github.com/Selkouutiset-Archive/selkokortti/assets/53230903/07c80715-4d04-4012-8f06-6613824f9216)
+
+Then you can import the `cards.apkg` to Anki, and start going through the new `Selko` deck it creates.
+
 ## Slowstart
 
 For folks who don't, I'm going to use the [tutorial-in-a-box technique](https://hiandrewquinn.github.io/til-site/posts/the-unreasonable-effectiveness-of-vms-in-hacker-pedagogy/) to help you get started. My hope is that after you run this, you'll be able to figure out how to install it yourself if you want to, wherever you want to.
