@@ -7,6 +7,127 @@ from typing import List
 
 app = typer.Typer()
 
+# There is no inherent meaning in this number.
+# It's just needed for Anki to identify the model.
+MODEL_ID = 1178313288
+
+# The fun thing about genanki is it's like a tiny MVC framework all in one.
+selko_front_view = """
+<div class="deck">
+{{Deck}}
+</div>
+<div class="card" onclick="showBackContent()">
+    <div class="front-content" id="front-content">
+       {{Front}}
+       <!-- <div id="shuffled-sentence"></div> -->
+    </div>
+    <div class="back-content">
+    </div>
+</div>
+"""
+
+selko_back_view = """
+<div class="deck">
+{{Deck}}
+</div>
+<div class="card" onclick="showBackContent()">
+    <div class="front-content" id="front-content">
+       {{Front}}
+       <!-- <div id="shuffled-sentence"></div> -->
+    </div>
+    <div class="back-content">
+       {{Back}}
+    </div>
+</div>
+"""
+
+
+selko_css = """
+/* Base styling */
+.card {
+    font-family: Georgia, serif;
+    text-align: justify;
+    font-size: 25px;
+    display: grid;
+}
+
+/* Increase spacing between paragraphs */
+.card div {
+    margin-top: 10px; /* Adjust the space above the paragraph */
+    margin-bottom: 10px; /* Adjust the space below the paragraph */
+}
+
+.deck {        width: 100%; font-size: 50%; }
+    
+
+/* Desktop specific styling */
+@media screen and (min-width: 100px) {
+    .card {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    /* Set the front and back content side by side with a fixed width */
+    .front-content, .back-content {
+        width: 900px; /* Fixed width for each column */
+        padding: 1%; /* Adjust padding as needed */
+        flex-grow: 0; /* Prevent flex items from growing */
+        flex-shrink: 0; /* Prevent flex items from shrinking */
+    }
+
+    /* Show the 'back' content on desktop */
+    .back-content {
+        display: block;
+    }
+}
+
+/* Adjust for mobile screens */
+@media screen and (max-width: 600px) { /* This targets screens smaller than 600px */
+    .card {
+        width: 100%; /* Make each take the full width */
+        display: block; /* Change layout to block for vertical stacking */
+    }
+
+    .front-content, .back-content {
+        width: 100%; /* Make each take the full width */
+        padding: 1%; /* Adjust padding if necessary */
+    }
+}
+
+/* Centering headings */
+.card h1, .card h2, .card h3, .card h4, .card h5, .card h6 {
+    text-align: center;
+    margin-top: 20px; /* Adjust the space above the heading */
+    margin-bottom: 20px; /* Adjust the space below the heading */
+}
+
+/* Centering and sizing images */
+.card img {
+    display: block; /* Make sure the image is block-level for margin auto to work */
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 100%; /* Ensure the image is never larger than its container */
+    height: auto; /* Maintain aspect ratio */
+}
+"""
+
+model = genanki.Model(
+    MODEL_ID,
+    "Selko",
+    fields=[
+        {"name": "Finnish"},
+        {"name": "English"},
+    ],
+    templates=[
+        {
+            "name": "Finnish to English",
+            "qfmt": selko_front_view,
+            "afmt": selko_back_view,
+            "css": selko_css,
+        },
+    ],
+)
+
 
 def parse_json(file_path: str, start_date=None, end_date=None):
     # Logic to parse JSON file and extract data based on date filters
