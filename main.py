@@ -104,9 +104,11 @@ def parse_json(file_path: str, start_date=None, end_date=None):
     # Logic to parse JSON file and extract data based on date filters
     pass
 
+
 def create_deck(output_file="cards.apkg"):
     genanki.Package(deck).write_to_file(output_file)
     return
+
 
 def add_flashcards_to_deck(data, output_file):
     # Logic to create flashcards using genanki and save to output_file
@@ -117,6 +119,7 @@ def add_flashcards_to_deck(data, output_file):
         )
         deck.add_note(note)
     return
+
 
 def find_date_range(directory_path):
     earliest_date = datetime.max
