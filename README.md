@@ -26,6 +26,10 @@ The most flexible way to use this is with `range yyyy.mm.dd yyyy.mm.dd`, which w
 
 Then you can import the `cards.apkg` to Anki, and start going through the new `Selko` deck it creates.
 
+If you wish to inspect the `cards.apkg` yourself before inspecting it, `unzip` it and load the resulting `collections.anki2` into a SQLite viewer, as below:
+
+![image](https://github.com/Selkouutiset-Archive/selkokortti/assets/53230903/cf272cfa-f647-42df-8cd2-790dc2d60ef1)
+
 ## Slowstart
 
 For folks who don't, I'm going to use the [tutorial-in-a-box technique](https://hiandrewquinn.github.io/til-site/posts/the-unreasonable-effectiveness-of-vms-in-hacker-pedagogy/) to help you get started. My hope is that after you run this, you'll be able to figure out how to install it yourself if you want to, wherever you want to.
