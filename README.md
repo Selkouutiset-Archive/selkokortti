@@ -26,7 +26,7 @@ The most flexible way to use this is with `range yyyy.mm.dd yyyy.mm.dd`, which w
 
 Then you can import the `cards.apkg` to Anki, and start going through the new `Selko` deck it creates.
 
-If you wish to inspect the `cards.apkg` yourself before inspecting it, `unzip` it and load the resulting `collections.anki2` into a SQLite viewer, as below:
+If you wish to inspect the `cards.apkg` yourself before importing it, `unzip` it and load the resulting `collections.anki2` into a SQLite viewer, as below:
 
 ![image](https://github.com/Selkouutiset-Archive/selkokortti/assets/53230903/cf272cfa-f647-42df-8cd2-790dc2d60ef1)
 
