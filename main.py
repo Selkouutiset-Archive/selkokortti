@@ -40,6 +40,13 @@ selko_back_view = """
        {{English}}
     </div>
 </div>
+<hr />
+<aside>
+    <p>Proudly brought to you by <a href="https://hiandrewquinn.github.io/selkouutiset-archive/">Andrew's Selkouutiset Archive</a>.</p>
+    <p>Find this useful? <a href="https://www.linkedin.com/in/heiandrewquinn/">Add Andrew on LinkedIn</a>!</p>
+    <p>Spotted a bug? <a href="https://github.com/Selkouutiset-Archive/selkokortti/issues">Let us know on Github!</a></p>
+</aside>
+
 """
 
 
@@ -78,6 +85,10 @@ selko_css = """
         color: #ADD8E6; /* Light blue color for Dark mode */
     }
 }
+
+aside {
+    font-size:80%;
+}
 """
 
 model = genanki.Model(
@@ -105,9 +116,15 @@ def parse_json(file_path: str, start_date=None, end_date=None):
     pass
 
 
-def create_deck(output_file="cards.apkg"):
+def create_deck(date=None, output_file="cards.apkg"):
     genanki.Package(deck).write_to_file(output_file)
     return
+
+
+def create_deck_for_date(date):
+    yyyy, mm, dd = date.split(".")
+    return create_deck(f"Selko::{yyyy}::{mm}::{dd}")
+
 
 
 def add_flashcards_to_deck(data, output_file):
@@ -243,6 +260,7 @@ def generate_flashcards(start_date, end_date, output):
     while current_date <= end:
         generate_flashcards_for_date(current_date.strftime("%Y.%m.%d"), output)
         current_date += timedelta(days=1)
+        create_deck_for_date(current_date.strftime("%Y.%m.%d"), output)
 
     create_deck()
 
