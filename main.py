@@ -2,10 +2,30 @@ import typer
 import os
 import genanki
 import json
+import logging
 from datetime import datetime, timedelta
 from typing import List
+import colorlog
 
 app = typer.Typer()
+
+# Configure logger
+handler = colorlog.StreamHandler()
+handler.setFormatter(
+    colorlog.ColoredFormatter(
+        "%(log_color)s%(levelname)s:%(name)s:%(message)s",
+        log_colors={
+            "DEBUG": "cyan",
+            "INFO": "green",
+            "WARNING": "yellow",
+            "ERROR": "red",
+            "CRITICAL": "red,bg_white",
+        },
+    )
+)
+logger = colorlog.getLogger()
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # There is no inherent meaning in these numbers.
 # It's just needed for Anki to identify the model.
@@ -46,7 +66,6 @@ selko_back_view = """
     <p>Find this useful? <a href="https://www.linkedin.com/in/heiandrewquinn/">Add Andrew on LinkedIn</a>!</p>
     <p>Spotted a bug? <a href="https://github.com/Selkouutiset-Archive/selkokortti/issues">Let us know on Github!</a></p>
 </aside>
-
 """
 
 
@@ -117,14 +136,16 @@ def parse_json(file_path: str, start_date=None, end_date=None):
 
 
 def create_deck(date=None, output_file="cards.apkg"):
-    genanki.Package(deck).write_to_file(output_file)
+    try:
+        genanki.Package(deck).write_to_file(output_file)
+    except:
+        logging.error(f"Could not add {date} to {output_file}!")
     return
 
 
 def create_deck_for_date(date):
     yyyy, mm, dd = date.split(".")
     return create_deck(f"Selko::{yyyy}::{mm}::{dd}")
-
 
 
 def add_flashcards_to_deck(data, output_file):
@@ -135,6 +156,7 @@ def add_flashcards_to_deck(data, output_file):
             fields=[finnish, english],
         )
         deck.add_note(note)
+        logger.debug(f"Created card for date: {finnish} - {english}")
     return
 
 
@@ -171,10 +193,10 @@ def parse_request_json(file_path: str) -> List[str]:
             data = json.load(file)
             return data.get("q", [])
     except FileNotFoundError:
-        print(f"File not found: {file_path}")
+        logger.error(f"File not found: {file_path}")
         return []
     except json.JSONDecodeError:
-        print(f"Error decoding JSON in file: {file_path}")
+        logger.error(f"Error decoding JSON in file: {file_path}")
         return []
 
 
@@ -185,10 +207,10 @@ def parse_response_json(file_path: str) -> List[str]:
             translations = data.get("data", {}).get("translations", [])
             return [item.get("translatedText", "") for item in translations]
     except FileNotFoundError:
-        print(f"File not found: {file_path}")
+        logger.error(f"File not found: {file_path}")
         return []
     except json.JSONDecodeError:
-        print(f"Error decoding JSON in file: {file_path}")
+        logger.error(f"Error decoding JSON in file: {file_path}")
         return []
 
 
@@ -244,12 +266,13 @@ def generate_flashcards_for_date(date, output):
 
     # Check if there are translation pairs to process
     if not translation_pairs:
+        logger.warning(f"No data found for date: {date}")
         raise typer.Exit(f"No data found for date: {date}")
 
     # Create flashcards (assuming add_flashcards_to_deck can handle the format of translation_pairs)
     add_flashcards_to_deck(translation_pairs, output)
 
-    typer.echo(f"Flashcards generated for {date} in {output}")
+    logger.info(f"Flashcards generated for {date} in {output}")
 
 
 def generate_flashcards(start_date, end_date, output):
@@ -259,24 +282,40 @@ def generate_flashcards(start_date, end_date, output):
 
     while current_date <= end:
         generate_flashcards_for_date(current_date.strftime("%Y.%m.%d"), output)
+        create_deck_for_date(current_date.strftime("%Y.%m.%d"))
         current_date += timedelta(days=1)
-        create_deck_for_date(current_date.strftime("%Y.%m.%d"), output)
 
-    create_deck()
+    create_deck(output)
+
+
+def set_logging(quiet: bool, verbose: bool):
+    if quiet:
+        logger.setLevel(logging.WARNING)
+    elif verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
 
 @app.command()
-def today(output: str = typer.Option("cards.apkg", help="Output Anki file name")):
+def today(
+    output: str = typer.Option("cards.apkg", help="Output Anki file name"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print DEBUG level logs (normal level: INFO)."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Print WARNING level logs (normal level: INFO). Overrides --verbose.")
+):
+    set_logging(verbose)
     today_date = datetime.now().strftime("%Y.%m.%d")
     generate_flashcards(today_date, today_date, output)
 
-
 @app.command()
-def everything(output: str = typer.Option("cards.apkg", help="Output Anki file name")):
-    # Placeholder start_date and end_date. Replace these with actual logic to determine dates.
+def everything(
+    output: str = typer.Option("cards.apkg", help="Output Anki file name"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print DEBUG level logs (normal level: INFO)."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Print WARNING level logs (normal level: INFO). Overrides --verbose.")
+):
+    set_logging(verbose)
     start_date, end_date = find_date_range("selkouutiset-scrape-cleaned")
     generate_flashcards(start_date, end_date, output)
-
 
 @app.command()
 def range(
@@ -287,9 +326,11 @@ def range(
         ..., formats=["%Y.%m.%d"], help="End date in yyyy.mm.dd format"
     ),
     output: str = typer.Option("cards.apkg", help="Output Anki file name"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print DEBUG level logs (normal level: INFO)."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Print WARNING level logs (normal level: INFO). Overrides --verbose.")
 ):
+    set_logging(quiet, verbose)
     generate_flashcards(start_date, end_date, output)
-
 
 if __name__ == "__main__":
     app()
