@@ -95,18 +95,24 @@ selko_css = """
 }
 
 /* Adjustments for Dark mode */
-.card.nightMode {
-    .front-content {
-        color: #FFA07A; /* Light red color for Dark mode */
-    }
+.card.nightMode .front-content {
+    color: #FFA07A; /* Light red color for Dark mode */
+}
 
-    .back-content {
-        color: #ADD8E6; /* Light blue color for Dark mode */
-    }
+.card.nightMode .back-content {
+    color: #ADD8E6; /* Light blue color for Dark mode */
 }
 
 aside {
-    font-size:80%;
+    font-family: serif;
+    font-size: 50%;
+}
+
+/* Media query for smaller screens */
+@media only screen and (max-width: 600px) {
+    .card {
+        font-size: 24px; /* Reduce font size to 24px for small screens */
+    }
 }
 """
 
