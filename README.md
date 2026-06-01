@@ -38,24 +38,36 @@ uv run selkokortti --help            # uv sets up the environment automatically
 | Command | What it does |
 | --- | --- |
 | `range yyyy.mm.dd yyyy.mm.dd` | Cards for an inclusive date range (most flexible). |
+| `latest [N]` | Cards for the N most recent available dates (default 7). |
 | `today` | Cards for today's date. |
 | `everything` | Cards for every available date. |
+| `info` | Show the dataset cache location and the available date range. |
 
-Shared options:
+Run `selkokortti --version` to print the version, or `selkokortti <command> --help`
+for a command's full options.
+
+Shared options (on the card-generating commands):
 
 - `--direction / -d` — `fi-en` (Finnish prompt → English, the default),
   `en-fi` (English prompt → Finnish, for active production practice), or
   `both` (one note, two linked cards in both directions).
 - `--output` — output filename (default `cards.apkg`).
+- `--deck-name` — name of the generated Anki deck (default `Selko`).
 - `--data-dir PATH` — use a local checkout of `selkouutiset-scrape-cleaned`
   instead of the auto-managed cache (skips all network access).
 - `--no-update` — reuse the cached dataset without refreshing it.
-- `--verbose / -v`, `--quiet / -q` — log verbosity.
+- `--verbose / -v`, `--quiet / -q` — log verbosity (`-v` also shows raw `git` output).
 
 ```bash
+selkokortti latest 7                                 # last 7 days of articles
 selkokortti range 2025.06.20 2025.06.23 -d both      # bidirectional cards
 selkokortti range 2025.06.20 2025.06.23 -d en-fi     # English → Finnish production
+selkokortti info                                     # what dates are available?
 ```
+
+If you ask for a date with no article (a weekend or a date that hasn't happened
+yet), `selkokortti` tells you so and points you at the most recent available date
+instead of failing cryptically.
 
 ![image](https://github.com/Selkouutiset-Archive/selkokortti/assets/53230903/07c80715-4d04-4012-8f06-6613824f9216)
 
