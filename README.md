@@ -33,6 +33,9 @@ You can also run it without installing, or hack on it locally:
 git clone https://github.com/Selkouutiset-Archive/selkokortti
 cd selkokortti
 uv run selkokortti --help            # uv sets up the environment automatically
+
+uv run --group dev pytest            # run the test suite
+uv run --group dev ruff check        # lint
 ```
 
 ### Commands and options
