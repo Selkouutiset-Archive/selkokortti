@@ -1,0 +1,23 @@
+{
+  "data": {
+    "translations": [
+      { "translatedText": "# TV | Clear News | test" },
+      { "translatedText": "" },
+      { "translatedText": "Topic one. Topic two." },
+      { "translatedText": "" },
+      { "translatedText": "## Topic one" },
+      { "translatedText": "" },
+      { "translatedText": "This is the first sentence." },
+      { "translatedText": "" },
+      { "translatedText": "This is a repeated sentence." },
+      { "translatedText": "" },
+      { "translatedText": "## Topic two" },
+      { "translatedText": "" },
+      { "translatedText": "This is a repeated sentence." },
+      { "translatedText": "" },
+      { "translatedText": "Tom & Jerry **bold**." },
+      { "translatedText": "" },
+      { "translatedText": "![image](http://example.com/y.png)" }
+    ]
+  }
+}
