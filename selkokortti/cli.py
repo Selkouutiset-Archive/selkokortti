@@ -216,6 +216,10 @@ selko_css = """
     color: #ADD8E6; /* Light blue color for Dark mode */
 }
 
+.type-answer {
+    padding: 12px 20px;
+}
+
 aside {
     font-family: serif;
     font-size: 50%;
@@ -229,34 +233,92 @@ aside {
 }
 """
 
+# Typed English -> Finnish: the learner types the Finnish answer and Anki
+# diffs it. `{{type:Finnish}}` on the front renders the input box; on the back
+# it renders the comparison, and we still show the full Finnish below it.
+_EN_FRONT_TYPED = """
+<div class="deck">
+{{Deck}}
+</div>
+<div class="card">
+    <div class="front-content" id="front-content">
+       {{English}}
+    </div>
+    <div class="type-answer">
+       {{type:Finnish}}
+    </div>
+</div>
+"""
+
+_EN_BACK_TYPED = """
+<div class="deck">
+{{Deck}}
+</div>
+<div class="card">
+    <div class="front-content" id="front-content">
+       {{English}}
+    </div>
+    <div class="type-answer">
+       {{type:Finnish}}
+    </div>
+    <div class="back-content">
+       {{Finnish}}
+    </div>
+</div>
+<hr />
+<aside>
+    <p>Proudly brought to you by <a href="https://hiandrewquinn.github.io/selkouutiset-archive/">Andrew's Selkouutiset Archive</a>.</p>
+    <p>Find this useful? <a href="https://www.linkedin.com/in/heiandrewquinn/">Add Andrew on LinkedIn</a>!</p>
+    <p>Spotted a bug? <a href="https://github.com/Selkouutiset-Archive/selkokortti/issues">Let us know on Github!</a></p>
+</aside>
+"""
+
 _FIELDS = [{"name": "Deck"}, {"name": "Finnish"}, {"name": "English"}]
 
 _TEMPLATE_FI_EN = {"name": "Finnish to English", "qfmt": _FI_FRONT, "afmt": _FI_BACK}
 _TEMPLATE_EN_FI = {"name": "English to Finnish", "qfmt": _EN_FRONT, "afmt": _EN_BACK}
+_TEMPLATE_EN_FI_TYPED = {
+    "name": "English to Finnish",
+    "qfmt": _EN_FRONT_TYPED,
+    "afmt": _EN_BACK_TYPED,
+}
 
-MODELS = {
-    Direction.fi_en: genanki.Model(
-        MODEL_ID_FI_EN,
-        "Selko",
-        fields=_FIELDS,
-        templates=[_TEMPLATE_FI_EN],
-        css=selko_css,
-    ),
-    Direction.en_fi: genanki.Model(
-        MODEL_ID_EN_FI,
-        "Selko (English to Finnish)",
-        fields=_FIELDS,
-        templates=[_TEMPLATE_EN_FI],
-        css=selko_css,
-    ),
-    Direction.both: genanki.Model(
+
+def _en_fi_template(typed: bool) -> dict:
+    return _TEMPLATE_EN_FI_TYPED if typed else _TEMPLATE_EN_FI
+
+
+def get_model(direction: Direction, typed: bool = True) -> genanki.Model:
+    """Build the genanki model for a direction.
+
+    When ``typed`` is set, the English -> Finnish card asks the learner to type
+    the Finnish answer (active production). Finnish -> English is never typed
+    (its answer is English). Model IDs are stable across the typed/plain
+    variants so Anki treats them as the same note type.
+    """
+    if direction is Direction.fi_en:
+        return genanki.Model(
+            MODEL_ID_FI_EN,
+            "Selko",
+            fields=_FIELDS,
+            templates=[_TEMPLATE_FI_EN],
+            css=selko_css,
+        )
+    if direction is Direction.en_fi:
+        return genanki.Model(
+            MODEL_ID_EN_FI,
+            "Selko (English to Finnish)",
+            fields=_FIELDS,
+            templates=[_en_fi_template(typed)],
+            css=selko_css,
+        )
+    return genanki.Model(
         MODEL_ID_BOTH,
         "Selko (bidirectional)",
         fields=_FIELDS,
-        templates=[_TEMPLATE_FI_EN, _TEMPLATE_EN_FI],
+        templates=[_TEMPLATE_FI_EN, _en_fi_template(typed)],
         css=selko_css,
-    ),
-}
+    )
 
 
 # --- Data parsing ---------------------------------------------------------
@@ -439,6 +501,7 @@ def build_deck(
     direction: Direction,
     deck_name: str = "Selko",
     warn_missing: bool = True,
+    typed: bool = True,
 ) -> genanki.Deck:
     start = datetime.strptime(start_date, "%Y.%m.%d")
     end = datetime.strptime(end_date, "%Y.%m.%d")
@@ -447,7 +510,7 @@ def build_deck(
             f"start date {start_date} is after end date {end_date}."
         )
 
-    model = MODELS[direction]
+    model = get_model(direction, typed)
     deck = genanki.Deck(DECK_ID, deck_name)
 
     current_date = start
@@ -530,6 +593,12 @@ def set_logging(quiet: bool, verbose: bool):
 OutputOpt = typer.Option("cards.apkg", help="Output Anki file name.")
 DeckNameOpt = typer.Option(
     "Selko", "--deck-name", help="Name of the generated Anki deck."
+)
+TypedOpt = typer.Option(
+    True,
+    "--typed/--no-typed",
+    help="For English->Finnish cards, ask the learner to type the Finnish "
+    "answer (active production). On by default; --no-typed shows a plain reveal.",
 )
 _DIRECTION_HELP = (
     "Card direction. Long or short forms accepted: finnish-english (fi-en), "
@@ -614,6 +683,7 @@ def today(
     output: str = OutputOpt,
     direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
+    typed: bool = TypedOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -624,7 +694,12 @@ def today(
     resolved = resolve_data_dir(data_dir, no_update)
     today_date = datetime.now().strftime("%Y.%m.%d")
     deck = build_deck(
-        resolved, today_date, today_date, _effective_direction(direction), deck_name
+        resolved,
+        today_date,
+        today_date,
+        _effective_direction(direction),
+        deck_name,
+        typed=typed,
     )
     write_deck(deck, output)
 
@@ -634,6 +709,7 @@ def everything(
     output: str = OutputOpt,
     direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
+    typed: bool = TypedOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -652,6 +728,7 @@ def everything(
         _effective_direction(direction),
         deck_name,
         warn_missing=False,
+        typed=typed,
     )
     write_deck(deck, output)
 
@@ -667,6 +744,7 @@ def range(
     output: str = OutputOpt,
     direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
+    typed: bool = TypedOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -676,7 +754,12 @@ def range(
     set_logging(quiet, verbose)
     resolved = resolve_data_dir(data_dir, no_update)
     deck = build_deck(
-        resolved, start_date, end_date, _effective_direction(direction), deck_name
+        resolved,
+        start_date,
+        end_date,
+        _effective_direction(direction),
+        deck_name,
+        typed=typed,
     )
     write_deck(deck, output)
 
@@ -689,6 +772,7 @@ def latest(
     output: str = OutputOpt,
     direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
+    typed: bool = TypedOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -710,6 +794,7 @@ def latest(
         _effective_direction(direction),
         deck_name,
         warn_missing=False,
+        typed=typed,
     )
     write_deck(deck, output)
 

@@ -56,6 +56,11 @@ Shared options (on the card-generating commands):
   `selkokortti -d both range 2025.06.20 2025.06.23`.
 - `--output` — output filename (default `cards.apkg`).
 - `--deck-name` — name of the generated Anki deck (default `Selko`).
+- `--typed / --no-typed` — for English → Finnish cards, ask you to **type** the
+  Finnish answer so Anki can diff it (active production practice). On by default;
+  `--no-typed` falls back to a plain show/reveal card. Only affects the
+  Finnish-answer side, so `fi-en` cards are unaffected and `both` types just its
+  English → Finnish card.
 - `--data-dir PATH` — use a local checkout of `selkouutiset-scrape-cleaned`
   instead of the auto-managed cache (skips all network access).
 - `--no-update` — reuse the cached dataset without refreshing it.
