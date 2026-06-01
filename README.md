@@ -23,7 +23,9 @@ On first run it clones the [Selkouutiset data
 repo](https://github.com/hiAndrewQuinn/selkouutiset-scrape-cleaned) into your
 user cache directory, and refreshes it on every subsequent run. A file called
 `cards.apkg` appears in your current directory — import it into Anki and start
-going through the new `Selko` deck.
+going through the new `Selko` deck. Cards are organised into per-month subdecks
+(`Selko::2025::06`), tagged by date (`selko`, `2025-06-23`), and each card links
+back to the original article in the archive.
 
 You can also run it without installing, or hack on it locally:
 

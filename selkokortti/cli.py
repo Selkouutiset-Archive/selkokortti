@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import zlib
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -143,6 +144,7 @@ _FI_BACK = """
 </div>
 <hr />
 <aside>
+    <p>{{Source}}</p>
     <p>Proudly brought to you by <a href="https://hiandrewquinn.github.io/selkouutiset-archive/">Andrew's Selkouutiset Archive</a>.</p>
     <p>Find this useful? <a href="https://www.linkedin.com/in/heiandrewquinn/">Add Andrew on LinkedIn</a>!</p>
     <p>Spotted a bug? <a href="https://github.com/Selkouutiset-Archive/selkokortti/issues">Let us know on Github!</a></p>
@@ -176,6 +178,7 @@ _EN_BACK = """
 </div>
 <hr />
 <aside>
+    <p>{{Source}}</p>
     <p>Proudly brought to you by <a href="https://hiandrewquinn.github.io/selkouutiset-archive/">Andrew's Selkouutiset Archive</a>.</p>
     <p>Find this useful? <a href="https://www.linkedin.com/in/heiandrewquinn/">Add Andrew on LinkedIn</a>!</p>
     <p>Spotted a bug? <a href="https://github.com/Selkouutiset-Archive/selkokortti/issues">Let us know on Github!</a></p>
@@ -267,13 +270,21 @@ _EN_BACK_TYPED = """
 </div>
 <hr />
 <aside>
+    <p>{{Source}}</p>
     <p>Proudly brought to you by <a href="https://hiandrewquinn.github.io/selkouutiset-archive/">Andrew's Selkouutiset Archive</a>.</p>
     <p>Find this useful? <a href="https://www.linkedin.com/in/heiandrewquinn/">Add Andrew on LinkedIn</a>!</p>
     <p>Spotted a bug? <a href="https://github.com/Selkouutiset-Archive/selkokortti/issues">Let us know on Github!</a></p>
 </aside>
 """
 
-_FIELDS = [{"name": "Deck"}, {"name": "Finnish"}, {"name": "English"}]
+_FIELDS = [
+    {"name": "Deck"},
+    {"name": "Finnish"},
+    {"name": "English"},
+    {"name": "Source"},
+]
+
+ARCHIVE_BASE_URL = "https://hiandrewquinn.github.io/selkouutiset-archive"
 
 _TEMPLATE_FI_EN = {"name": "Finnish to English", "qfmt": _FI_FRONT, "afmt": _FI_BACK}
 _TEMPLATE_EN_FI = {"name": "English to Finnish", "qfmt": _EN_FRONT, "afmt": _EN_BACK}
@@ -502,7 +513,7 @@ def build_deck(
     deck_name: str = "Selko",
     warn_missing: bool = True,
     typed: bool = True,
-) -> genanki.Deck:
+) -> List[genanki.Deck]:
     start = datetime.strptime(start_date, "%Y.%m.%d")
     end = datetime.strptime(end_date, "%Y.%m.%d")
     if start > end:
@@ -511,7 +522,17 @@ def build_deck(
         )
 
     model = get_model(direction, typed)
-    deck = genanki.Deck(DECK_ID, deck_name)
+
+    # One subdeck per month, e.g. "Selko::2025::06", so the cards stay organised
+    # in Anki. Deck IDs are derived deterministically from the name so re-imports
+    # merge into the same decks.
+    decks = {}
+
+    def _month_deck(year: str, month: str) -> genanki.Deck:
+        name = f"{deck_name}::{year}::{month}"
+        if name not in decks:
+            decks[name] = genanki.Deck(_deck_id(name), name)
+        return decks[name]
 
     current_date = start
     note_count = 0
@@ -527,8 +548,12 @@ def build_deck(
                 logger.debug("No article for %s (skipped).", date_str)
             current_date += timedelta(days=1)
             continue
-        pairs = process_translations_for_date(data_dir, date_str)
+        year, month, _day = date_str.split(".")
+        deck = _month_deck(year, month)
         deck_label = f"{deck_name} :: {date_str}"
+        source = _source_link(date_str)
+        tags = ["selko", current_date.strftime("%Y-%m-%d")]
+        pairs = process_translations_for_date(data_dir, date_str)
         for finnish, english in pairs:
             # Stable GUID keyed on (direction, Finnish) so re-runs update rather
             # than duplicate, and identical sentences dedup within the build.
@@ -539,7 +564,13 @@ def build_deck(
             deck.add_note(
                 genanki.Note(
                     model=model,
-                    fields=[deck_label, render_text(finnish), render_text(english)],
+                    fields=[
+                        deck_label,
+                        render_text(finnish),
+                        render_text(english),
+                        source,
+                    ],
+                    tags=tags,
                     guid=guid,
                 )
             )
@@ -565,17 +596,29 @@ def build_deck(
         raise typer.Exit(code=1)
 
     logger.info(
-        "Built %d notes (%s) for %s .. %s",
+        "Built %d notes (%s) across %d subdeck(s) for %s .. %s",
         note_count,
         direction.value,
+        len(decks),
         start_date,
         end_date,
     )
-    return deck
+    return list(decks.values())
 
 
-def write_deck(deck: genanki.Deck, output_file: str) -> None:
-    genanki.Package(deck).write_to_file(output_file)
+def _deck_id(name: str) -> int:
+    # Deterministic, stable, positive 31-bit id derived from the deck name.
+    return zlib.crc32(name.encode("utf-8")) & 0x7FFFFFFF
+
+
+def _source_link(date_str: str) -> str:
+    year, month, day = date_str.split(".")
+    url = f"{ARCHIVE_BASE_URL}/{year}/{month}/{day}/"
+    return f'<a href="{url}">Read the full article ({date_str})</a>'
+
+
+def write_deck(decks, output_file: str) -> None:
+    genanki.Package(decks).write_to_file(output_file)
     logger.info("Wrote %s", output_file)
 
 
