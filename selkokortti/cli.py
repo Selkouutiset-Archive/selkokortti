@@ -20,15 +20,27 @@ production practice, or -d both for bidirectional cards (one note, two cards).
 The news dataset is downloaded and kept up to date for you automatically.
 """
 
-APP_EPILOG = """Examples:
-  selkokortti latest 7                       last 7 days of articles
-  selkokortti range 2025.06.20 2025.06.23    an inclusive date range
-  selkokortti range 2025.06.20 2025.06.23 -d both    bidirectional cards
-  selkokortti today -d en-fi                 today's article, English -> Finnish
-  selkokortti info                           show cache location + available dates
+# In rich mode each blank-line-separated paragraph renders on its own line;
+# use rich markup tags (not markdown) for emphasis.
+APP_EPILOG = """[bold]Examples:[/bold]
+
+[cyan]selkokortti latest 7[/cyan] — cards for the last 7 days of articles
+
+[cyan]selkokortti range 2025.06.20 2025.06.23[/cyan] — an inclusive date range
+
+[cyan]selkokortti range 2025.06.20 2025.06.23 -d both[/cyan] — bidirectional cards
+
+[cyan]selkokortti today -d english-finnish[/cyan] — today's article, English → Finnish
+
+[cyan]selkokortti info[/cyan] — show cache location + available dates
 """
 
-app = typer.Typer(help=APP_HELP, epilog=APP_EPILOG, no_args_is_help=True)
+app = typer.Typer(
+    help=APP_HELP,
+    epilog=APP_EPILOG,
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
 
 # Configure logger
 handler = colorlog.StreamHandler()
@@ -60,6 +72,43 @@ class Direction(str, Enum):
     fi_en = "fi-en"
     en_fi = "en-fi"
     both = "both"
+
+
+# Accepted on --direction: canonical long forms plus shorter aliases. All keys
+# are lowercase; lookups lowercase their input.
+DIRECTION_ALIASES = {
+    "finnish-english": Direction.fi_en,
+    "fi-en": Direction.fi_en,
+    "fien": Direction.fi_en,
+    "fi": Direction.fi_en,
+    "english-finnish": Direction.en_fi,
+    "en-fi": Direction.en_fi,
+    "enfi": Direction.en_fi,
+    "en": Direction.en_fi,
+    "bidirectional": Direction.both,
+    "both": Direction.both,
+    "bi": Direction.both,
+    "fi-en-fi": Direction.both,
+}
+
+# Shown in --help; the canonical long forms.
+DIRECTION_METAVAR = "[finnish-english|english-finnish|bidirectional]"
+
+
+def _parse_direction(value):
+    """Typer option callback: map any accepted alias to a Direction."""
+    if value is None:
+        return None
+    if isinstance(value, Direction):
+        return value
+    key = str(value).strip().lower()
+    try:
+        return DIRECTION_ALIASES[key]
+    except KeyError:
+        raise typer.BadParameter(
+            f"'{value}' is not a valid direction. Choose one of: "
+            "finnish-english (fi-en), english-finnish (en-fi), bidirectional (both)."
+        )
 
 
 # --- Card templates -------------------------------------------------------
@@ -426,13 +475,39 @@ OutputOpt = typer.Option("cards.apkg", help="Output Anki file name.")
 DeckNameOpt = typer.Option(
     "Selko", "--deck-name", help="Name of the generated Anki deck."
 )
-DirectionOpt = typer.Option(
-    Direction.fi_en,
+_DIRECTION_HELP = (
+    "Card direction. Long or short forms accepted: finnish-english (fi-en), "
+    "english-finnish (en-fi), bidirectional (both). May be given before the "
+    "subcommand (global) or after it."
+)
+
+# Global default, set by the app callback's --direction and read by commands
+# when their own --direction is not given.
+_state = {"direction": Direction.fi_en}
+
+# Global flag (shown on the top-level --help, can precede the subcommand).
+GlobalDirectionOpt = typer.Option(
+    "finnish-english",
     "--direction",
     "-d",
-    help="Card direction: fi-en (Finnish prompt), en-fi (English prompt), "
-    "or both (one note, two linked cards).",
+    callback=_parse_direction,
+    metavar=DIRECTION_METAVAR,
+    help=_DIRECTION_HELP,
 )
+
+# Per-command flag; default None means "inherit the global --direction".
+DirectionOpt = typer.Option(
+    None,
+    "--direction",
+    "-d",
+    callback=_parse_direction,
+    metavar=DIRECTION_METAVAR,
+    help=_DIRECTION_HELP + " [default: inherit global / finnish-english]",
+)
+
+
+def _effective_direction(direction: Optional[Direction]) -> Direction:
+    return direction if direction is not None else _state["direction"]
 DataDirOpt = typer.Option(
     None,
     "--data-dir",
@@ -471,14 +546,17 @@ def main(
         is_eager=True,
         help="Show the selkokortti version and exit.",
     ),
+    direction: Optional[str] = GlobalDirectionOpt,
 ):
     """Generate Anki flashcards from Andrew's Selkouutiset Archive."""
+    # _parse_direction (the option callback) has already mapped this to a Direction.
+    _state["direction"] = direction or Direction.fi_en
 
 
 @app.command(epilog="Example: selkokortti today -d both")
 def today(
     output: str = OutputOpt,
-    direction: Direction = DirectionOpt,
+    direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
@@ -489,14 +567,16 @@ def today(
     set_logging(quiet, verbose)
     resolved = resolve_data_dir(data_dir, no_update)
     today_date = datetime.now().strftime("%Y.%m.%d")
-    deck = build_deck(resolved, today_date, today_date, direction, deck_name)
+    deck = build_deck(
+        resolved, today_date, today_date, _effective_direction(direction), deck_name
+    )
     write_deck(deck, output)
 
 
 @app.command(epilog="Example: selkokortti everything --output all.apkg")
 def everything(
     output: str = OutputOpt,
-    direction: Direction = DirectionOpt,
+    direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
@@ -510,7 +590,12 @@ def everything(
     # Gaps (weekends, holidays) across the full archive are expected, so don't
     # warn per missing date here.
     deck = build_deck(
-        resolved, start_date, end_date, direction, deck_name, warn_missing=False
+        resolved,
+        start_date,
+        end_date,
+        _effective_direction(direction),
+        deck_name,
+        warn_missing=False,
     )
     write_deck(deck, output)
 
@@ -524,7 +609,7 @@ def range(
         ..., formats=["%Y.%m.%d"], help="End date in yyyy.mm.dd format"
     ),
     output: str = OutputOpt,
-    direction: Direction = DirectionOpt,
+    direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
@@ -534,7 +619,9 @@ def range(
     """Generate flashcards for an inclusive date range."""
     set_logging(quiet, verbose)
     resolved = resolve_data_dir(data_dir, no_update)
-    deck = build_deck(resolved, start_date, end_date, direction, deck_name)
+    deck = build_deck(
+        resolved, start_date, end_date, _effective_direction(direction), deck_name
+    )
     write_deck(deck, output)
 
 
@@ -544,7 +631,7 @@ def latest(
         7, min=1, help="Number of most recent available dates to include."
     ),
     output: str = OutputOpt,
-    direction: Direction = DirectionOpt,
+    direction: Optional[str] = DirectionOpt,
     deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
@@ -561,7 +648,12 @@ def latest(
     chosen = dates[-count:]
     # chosen are all existing dates; gaps within the window are expected.
     deck = build_deck(
-        resolved, chosen[0], chosen[-1], direction, deck_name, warn_missing=False
+        resolved,
+        chosen[0],
+        chosen[-1],
+        _effective_direction(direction),
+        deck_name,
+        warn_missing=False,
     )
     write_deck(deck, output)
 

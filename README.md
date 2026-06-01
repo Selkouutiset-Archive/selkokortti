@@ -48,9 +48,12 @@ for a command's full options.
 
 Shared options (on the card-generating commands):
 
-- `--direction / -d` — `fi-en` (Finnish prompt → English, the default),
-  `en-fi` (English prompt → Finnish, for active production practice), or
-  `both` (one note, two linked cards in both directions).
+- `--direction / -d` — choose the card direction. Each accepts a long or short
+  form: `finnish-english` / `fi-en` (Finnish prompt → English, the default),
+  `english-finnish` / `en-fi` (English prompt → Finnish, for active production
+  practice), or `bidirectional` / `both` (one note, two linked cards). This flag
+  also works **before** the subcommand as a global default, e.g.
+  `selkokortti -d both range 2025.06.20 2025.06.23`.
 - `--output` — output filename (default `cards.apkg`).
 - `--deck-name` — name of the generated Anki deck (default `Selko`).
 - `--data-dir PATH` — use a local checkout of `selkouutiset-scrape-cleaned`
