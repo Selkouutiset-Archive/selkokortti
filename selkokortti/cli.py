@@ -1,6 +1,8 @@
+import html
 import json
 import logging
 import os
+import re
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -298,20 +300,63 @@ def zip_translations(
 
 
 def filter_translations(paired_texts: List[tuple]) -> List[tuple]:
-    filtered_texts = []
+    """Keep only real sentence pairs.
 
-    for original, translation in paired_texts:
+    Drops empty rows, Markdown image rows, `#`/`##` headers, and the
+    topic-summary teaser line (every content line before the first `##` section
+    header — that's the TV title and the comma-joined headline list).
+    """
+    # Locate the first section header; everything before it is title + teaser.
+    first_section = None
+    for i, (original, _translation) in enumerate(paired_texts):
+        if original.strip().startswith("##"):
+            first_section = i
+            break
+
+    filtered_texts = []
+    for i, (original, translation) in enumerate(paired_texts):
+        stripped = original.strip()
+
         # Skip empty pairs
-        if original == "" and translation == "":
+        if stripped == "" and translation.strip() == "":
             continue
 
         # Skip pairs starting with '![', indicating Markdown images
-        if original.startswith("![") or translation.startswith("!["):
+        if stripped.startswith("![") or translation.strip().startswith("!["):
+            continue
+
+        # Skip Markdown headers (`#` title and `##` section headings)
+        if stripped.startswith("#"):
+            continue
+
+        # Skip the title + topic-summary teaser preceding the first section.
+        # (Only when sections exist, to avoid over-filtering odd layouts.)
+        if first_section is not None and i < first_section:
             continue
 
         filtered_texts.append((original, translation))
 
     return filtered_texts
+
+
+_MD_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
+_MD_BOLD = re.compile(r"\*\*([^*]+)\*\*")
+_MD_ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)|_([^_]+)_")
+
+
+def render_text(text: str) -> str:
+    """HTML-escape a sentence and convert the little Markdown it may contain.
+
+    Escaping runs first (it only touches `&<>"'`), so the Markdown markers
+    `*`, `[`, `]`, `(`, `)` survive for the regex pass that follows.
+    """
+    out = html.escape(text)
+    out = _MD_LINK.sub(r'<a href="\2">\1</a>', out)
+    out = _MD_BOLD.sub(r"<b>\1</b>", out)
+    out = _MD_ITALIC.sub(
+        lambda m: f"<i>{m.group(1) or m.group(2)}</i>", out
+    )
+    return out
 
 
 def process_translations_for_date(data_dir: Path, date: str) -> List[tuple]:
@@ -408,6 +453,7 @@ def build_deck(
     current_date = start
     note_count = 0
     missing_count = 0
+    seen_guids = set()
     while current_date <= end:
         date_str = current_date.strftime("%Y.%m.%d")
         if not date_has_article(data_dir, date_str):
@@ -421,8 +467,18 @@ def build_deck(
         pairs = process_translations_for_date(data_dir, date_str)
         deck_label = f"{deck_name} :: {date_str}"
         for finnish, english in pairs:
+            # Stable GUID keyed on (direction, Finnish) so re-runs update rather
+            # than duplicate, and identical sentences dedup within the build.
+            guid = genanki.guid_for(direction.value, finnish)
+            if guid in seen_guids:
+                continue
+            seen_guids.add(guid)
             deck.add_note(
-                genanki.Note(model=model, fields=[deck_label, finnish, english])
+                genanki.Note(
+                    model=model,
+                    fields=[deck_label, render_text(finnish), render_text(english)],
+                    guid=guid,
+                )
             )
             note_count += 1
         logger.debug("Added %d notes for %s", len(pairs), date_str)
