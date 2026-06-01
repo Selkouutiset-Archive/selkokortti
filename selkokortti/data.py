@@ -27,11 +27,20 @@ def _run_git(args, cwd=None):
             "local checkout of selkouutiset-scrape-cleaned."
         )
     logger.debug("git %s (cwd=%s)", " ".join(args), cwd)
-    subprocess.run(
+    # Keep git's own chatter ("remote: ...", "HEAD is now at ...") out of the
+    # way unless the user asked for verbose logging; on failure we surface the
+    # captured stderr so the error is still legible.
+    verbose = logger.isEnabledFor(logging.DEBUG)
+    result = subprocess.run(
         ["git", *args],
         cwd=str(cwd) if cwd else None,
-        check=True,
+        capture_output=not verbose,
+        text=True,
     )
+    if result.returncode != 0:
+        detail = (result.stderr or "").strip() if not verbose else ""
+        suffix = f"\n{detail}" if detail else ""
+        raise RuntimeError(f"`git {' '.join(args)}` failed.{suffix}")
 
 
 def default_cache_dir() -> Path:
@@ -58,17 +67,24 @@ def resolve_data_dir(data_dir=None, no_update: bool = False) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
             shutil.rmtree(path)
-        _run_git(
-            [
-                "clone",
-                "--depth",
-                "1",
-                "--branch",
-                DATA_REPO_BRANCH,
-                DATA_REPO_URL,
-                str(path),
-            ]
-        )
+        try:
+            _run_git(
+                [
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--branch",
+                    DATA_REPO_BRANCH,
+                    DATA_REPO_URL,
+                    str(path),
+                ]
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "Failed to download the Selkouutiset dataset. Check your network "
+                "connection, or pass --data-dir pointing at a local checkout of "
+                f"selkouutiset-scrape-cleaned.\n{exc}"
+            ) from exc
     elif not no_update:
         logger.info("Refreshing Selkouutiset dataset in %s ...", path)
         _run_git(["fetch", "--depth", "1", "origin", DATA_REPO_BRANCH], cwd=path)

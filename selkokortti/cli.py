@@ -10,9 +10,25 @@ import colorlog
 import genanki
 import typer
 
+from . import __version__
 from .data import resolve_data_dir
 
-app = typer.Typer(help="Generate Anki flashcards from Andrew's Selkouutiset Archive.")
+APP_HELP = """Generate Anki flashcards from Andrew's Selkouutiset Archive (Finnish easy-news).
+
+The default direction is Finnish -> English. Use -d en-fi for English -> Finnish
+production practice, or -d both for bidirectional cards (one note, two cards).
+The news dataset is downloaded and kept up to date for you automatically.
+"""
+
+APP_EPILOG = """Examples:
+  selkokortti latest 7                       last 7 days of articles
+  selkokortti range 2025.06.20 2025.06.23    an inclusive date range
+  selkokortti range 2025.06.20 2025.06.23 -d both    bidirectional cards
+  selkokortti today -d en-fi                 today's article, English -> Finnish
+  selkokortti info                           show cache location + available dates
+"""
+
+app = typer.Typer(help=APP_HELP, epilog=APP_EPILOG, no_args_is_help=True)
 
 # Configure logger
 handler = colorlog.StreamHandler()
@@ -293,23 +309,68 @@ def find_date_range(directory_path: Path) -> Tuple[str, str]:
     return earliest_date.strftime("%Y.%m.%d"), latest_date.strftime("%Y.%m.%d")
 
 
+def available_dates(directory_path: Path) -> List[str]:
+    """Return every YYYY.MM.DD that has an article, sorted ascending."""
+    dates = []
+    for root, dirs, files in os.walk(str(directory_path)):
+        parts = root.split(os.sep)
+        if len(parts) >= 3:
+            try:
+                current = datetime(int(parts[-3]), int(parts[-2]), int(parts[-1]))
+            except ValueError:
+                continue
+            dates.append(current.strftime("%Y.%m.%d"))
+    return sorted(dates)
+
+
+def date_has_article(data_dir: Path, date_str: str) -> bool:
+    year, month, day = date_str.split(".")
+    return (Path(data_dir) / year / month / day).is_dir()
+
+
+def _latest_date_hint(data_dir: Path) -> Optional[str]:
+    try:
+        _, latest = find_date_range(data_dir)
+    except RuntimeError:
+        return None
+    return latest
+
+
 # --- Deck building --------------------------------------------------------
 
 def build_deck(
-    data_dir: Path, start_date: str, end_date: str, direction: Direction
+    data_dir: Path,
+    start_date: str,
+    end_date: str,
+    direction: Direction,
+    deck_name: str = "Selko",
+    warn_missing: bool = True,
 ) -> genanki.Deck:
     start = datetime.strptime(start_date, "%Y.%m.%d")
     end = datetime.strptime(end_date, "%Y.%m.%d")
+    if start > end:
+        raise typer.BadParameter(
+            f"start date {start_date} is after end date {end_date}."
+        )
 
     model = MODELS[direction]
-    deck = genanki.Deck(DECK_ID, "Selko")
+    deck = genanki.Deck(DECK_ID, deck_name)
 
     current_date = start
     note_count = 0
+    missing_count = 0
     while current_date <= end:
         date_str = current_date.strftime("%Y.%m.%d")
+        if not date_has_article(data_dir, date_str):
+            missing_count += 1
+            if warn_missing:
+                logger.warning("No article published for %s (skipped).", date_str)
+            else:
+                logger.debug("No article for %s (skipped).", date_str)
+            current_date += timedelta(days=1)
+            continue
         pairs = process_translations_for_date(data_dir, date_str)
-        deck_label = f"Selko :: {date_str}"
+        deck_label = f"{deck_name} :: {date_str}"
         for finnish, english in pairs:
             deck.add_note(
                 genanki.Note(model=model, fields=[deck_label, finnish, english])
@@ -319,7 +380,20 @@ def build_deck(
         current_date += timedelta(days=1)
 
     if note_count == 0:
-        logger.warning("No data found for %s .. %s", start_date, end_date)
+        logger.error(
+            "No flashcards generated: no articles found for %s .. %s.",
+            start_date,
+            end_date,
+        )
+        latest = _latest_date_hint(data_dir)
+        if latest:
+            logger.error(
+                "The most recent available date is %s — try: "
+                "selkokortti range %s %s",
+                latest,
+                latest,
+                latest,
+            )
         raise typer.Exit(code=1)
 
     logger.info(
@@ -349,6 +423,9 @@ def set_logging(quiet: bool, verbose: bool):
 # --- Shared option helpers ------------------------------------------------
 
 OutputOpt = typer.Option("cards.apkg", help="Output Anki file name.")
+DeckNameOpt = typer.Option(
+    "Selko", "--deck-name", help="Name of the generated Anki deck."
+)
 DirectionOpt = typer.Option(
     Direction.fi_en,
     "--direction",
@@ -378,10 +455,31 @@ QuietOpt = typer.Option(
 
 # --- Commands -------------------------------------------------------------
 
-@app.command()
+def _version_callback(value: bool):
+    if value:
+        typer.echo(f"selkokortti {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the selkokortti version and exit.",
+    ),
+):
+    """Generate Anki flashcards from Andrew's Selkouutiset Archive."""
+
+
+@app.command(epilog="Example: selkokortti today -d both")
 def today(
     output: str = OutputOpt,
     direction: Direction = DirectionOpt,
+    deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -391,14 +489,15 @@ def today(
     set_logging(quiet, verbose)
     resolved = resolve_data_dir(data_dir, no_update)
     today_date = datetime.now().strftime("%Y.%m.%d")
-    deck = build_deck(resolved, today_date, today_date, direction)
+    deck = build_deck(resolved, today_date, today_date, direction, deck_name)
     write_deck(deck, output)
 
 
-@app.command()
+@app.command(epilog="Example: selkokortti everything --output all.apkg")
 def everything(
     output: str = OutputOpt,
     direction: Direction = DirectionOpt,
+    deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -408,11 +507,15 @@ def everything(
     set_logging(quiet, verbose)
     resolved = resolve_data_dir(data_dir, no_update)
     start_date, end_date = find_date_range(resolved)
-    deck = build_deck(resolved, start_date, end_date, direction)
+    # Gaps (weekends, holidays) across the full archive are expected, so don't
+    # warn per missing date here.
+    deck = build_deck(
+        resolved, start_date, end_date, direction, deck_name, warn_missing=False
+    )
     write_deck(deck, output)
 
 
-@app.command()
+@app.command(epilog="Example: selkokortti range 2025.06.20 2025.06.23 -d both")
 def range(
     start_date: str = typer.Argument(
         ..., formats=["%Y.%m.%d"], help="Start date in yyyy.mm.dd format"
@@ -422,6 +525,7 @@ def range(
     ),
     output: str = OutputOpt,
     direction: Direction = DirectionOpt,
+    deck_name: str = DeckNameOpt,
     data_dir: Optional[str] = DataDirOpt,
     no_update: bool = NoUpdateOpt,
     verbose: bool = VerboseOpt,
@@ -430,8 +534,55 @@ def range(
     """Generate flashcards for an inclusive date range."""
     set_logging(quiet, verbose)
     resolved = resolve_data_dir(data_dir, no_update)
-    deck = build_deck(resolved, start_date, end_date, direction)
+    deck = build_deck(resolved, start_date, end_date, direction, deck_name)
     write_deck(deck, output)
+
+
+@app.command(epilog="Example: selkokortti latest 7 -d both")
+def latest(
+    count: int = typer.Argument(
+        7, min=1, help="Number of most recent available dates to include."
+    ),
+    output: str = OutputOpt,
+    direction: Direction = DirectionOpt,
+    deck_name: str = DeckNameOpt,
+    data_dir: Optional[str] = DataDirOpt,
+    no_update: bool = NoUpdateOpt,
+    verbose: bool = VerboseOpt,
+    quiet: bool = QuietOpt,
+):
+    """Generate flashcards for the N most recent available dates."""
+    set_logging(quiet, verbose)
+    resolved = resolve_data_dir(data_dir, no_update)
+    dates = available_dates(resolved)
+    if not dates:
+        logger.error("No articles found under %s.", resolved)
+        raise typer.Exit(code=1)
+    chosen = dates[-count:]
+    # chosen are all existing dates; gaps within the window are expected.
+    deck = build_deck(
+        resolved, chosen[0], chosen[-1], direction, deck_name, warn_missing=False
+    )
+    write_deck(deck, output)
+
+
+@app.command()
+def info(
+    data_dir: Optional[str] = DataDirOpt,
+    no_update: bool = NoUpdateOpt,
+    verbose: bool = VerboseOpt,
+    quiet: bool = QuietOpt,
+):
+    """Show the dataset cache location and the available date range."""
+    set_logging(quiet, verbose)
+    resolved = resolve_data_dir(data_dir, no_update)
+    typer.echo(f"selkokortti {__version__}")
+    typer.echo(f"Data directory: {resolved}")
+    dates = available_dates(resolved)
+    if not dates:
+        typer.echo("Available dates: none (dataset is empty)")
+        return
+    typer.echo(f"Available dates: {dates[0]} .. {dates[-1]} ({len(dates)} days)")
 
 
 if __name__ == "__main__":
